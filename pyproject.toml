@@ -1,0 +1,19 @@
+[project]
+name = "coding-agent"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "google-genai>=1.0.0",
+    "groq>=1.7.0",
+    "langgraph>=1.2.12",
+    "python-dotenv>=1.2.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
