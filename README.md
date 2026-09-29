@@ -26,11 +26,12 @@ cd Coding_Agent
 uv sync
 ```
 
-Get a free Groq key at [console.groq.com](https://console.groq.com) (API Keys → Create, no card needed), then:
+Get a free Groq key at [console.groq.com](https://console.groq.com) (API Keys → Create, no card needed), then create a `.env` file in the project root:
 
-```bash
-cp .env.example .env
-# paste your key into GROQ_API_KEY in .env
+```
+LLM_PROVIDER=groq
+GROQ_API_KEY=your-key-here
+GEMINI_API_KEY=
 ```
 
 Run it against the seeded demo bug:
