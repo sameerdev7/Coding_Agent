@@ -16,7 +16,11 @@ venv/
 # Environment variables / secrets
 .env
 .env.*
-!.env.example
+
+# demo_repo_git has its own independent git history (used to demo the agent's
+# git-branch/commit workflow) — it must stay out of the main repo's tracking,
+# otherwise its nested .git would be picked up as a broken gitlink.
+demo_repo_git/
 
 # Test / tool caches
 .pytest_cache/
@@ -27,6 +31,9 @@ htmlcov/
 
 # Agent run artifacts
 transcript-*.json
+eval-results*.json
+.agent-runs/
+*.jsonl
 
 # Reference docs (personal notes, not part of the shipped project)
 docs/

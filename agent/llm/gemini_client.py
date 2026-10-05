@@ -1,12 +1,16 @@
+import logging
 import os
 import re
 import time
+from typing import Any, cast
 
 from google import genai
 from google.genai import errors, types
 
 from agent.llm.base import ChatResponse
-from agent.state import ToolCall
+from agent.state import ToolCall, ToolName
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_RETRIES = 3
@@ -47,32 +51,39 @@ class GeminiClient:
         self._client = genai.Client(api_key=api_key or os.environ["GEMINI_API_KEY"])
         self._model_name = model
 
-    def chat(self, messages: list[dict], tools: list[dict]) -> ChatResponse:
+    def chat(self, messages: list[dict], tools: list[dict], require_tool: bool = True) -> ChatResponse:
         system_instruction, contents = _to_gemini_contents(messages)
+        mode = types.FunctionCallingConfigMode.ANY if require_tool else types.FunctionCallingConfigMode.AUTO
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
-            tools=_to_gemini_tools(tools),
+            tools=cast(Any, _to_gemini_tools(tools)),
+            tool_config=types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode=mode)),
         )
 
-        response = None
         for attempt in range(MAX_RETRIES + 1):
             try:
                 response = self._client.models.generate_content(
                     model=self._model_name,
-                    contents=contents,
+                    contents=cast(Any, contents),
                     config=config,
                 )
-                break
             except errors.ClientError as exc:
                 if exc.code != RATE_LIMIT_CODE or _is_daily_quota(exc) or attempt == MAX_RETRIES:
                     raise
                 wait = _retry_delay_seconds(exc) or DEFAULT_BACKOFF_SECONDS
-                print(f"Gemini free-tier rate limit hit, retrying in {wait:.0f}s...")
+                logger.warning("Gemini free-tier rate limit hit, retrying in %.0fs...", wait)
                 time.sleep(wait)
+                continue
+            return self._to_chat_response(response)
+        raise RuntimeError("unreachable: retry loop ended without a response")
 
+    @staticmethod
+    def _to_chat_response(response: Any) -> ChatResponse:
+        usage = getattr(response, "usage_metadata", None)
+        total_tokens = (getattr(usage, "total_token_count", 0) if usage else 0) or 0
         function_calls = response.function_calls
         if function_calls:
             fc = function_calls[0]
-            tool_call: ToolCall = {"name": fc.name, "args": dict(fc.args or {})}
-            return ChatResponse(tool_call=tool_call, content=None)
-        return ChatResponse(tool_call=None, content=response.text)
+            tool_call: ToolCall = {"name": cast(ToolName, fc.name or ""), "args": dict(fc.args or {})}
+            return ChatResponse(tool_call=tool_call, content=None, total_tokens=total_tokens)
+        return ChatResponse(tool_call=None, content=response.text, total_tokens=total_tokens)

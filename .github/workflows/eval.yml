@@ -1,0 +1,34 @@
+name: Live eval
+
+# Manual only: this calls a real LLM provider, so it needs a secret and spends quota.
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Runs per demo repo
+        default: "3"
+      min_success_rate:
+        description: Fail the job below this overall success rate (0-1)
+        default: "0.0"
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - name: Run eval inside the Docker sandbox
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: >
+          uv run coding-agent eval
+          --runs ${{ inputs.runs }}
+          --min-success-rate ${{ inputs.min_success_rate }}
+          --sandbox docker
+          --out eval-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: eval-results.json
